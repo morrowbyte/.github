@@ -1,0 +1,49 @@
+name: Blacksmith runner acceptance
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    paths: [.github/workflows/blacksmith-runner-smoke.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  platforms:
+    name: ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - blacksmith-8vcpu-ubuntu-2404
+          - blacksmith-8vcpu-ubuntu-2404-arm
+          - blacksmith-8vcpu-windows-2025
+          - blacksmith-6vcpu-macos-26
+    steps:
+      - name: Record actual runner and public toolchain identity
+        shell: bash
+        env:
+          REQUESTED_RUNNER: ${{ matrix.runner }}
+          ACTUAL_RUNNER_NAME: ${{ runner.name }}
+          ACTUAL_RUNNER_OS: ${{ runner.os }}
+          ACTUAL_RUNNER_ARCH: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          printf 'requested=%s\nrunner=%s\nos=%s\narch=%s\nsource=%s\n' "$REQUESTED_RUNNER" "$ACTUAL_RUNNER_NAME" "$ACTUAL_RUNNER_OS" "$ACTUAL_RUNNER_ARCH" "$GITHUB_SHA"
+          uname -a
+          git --version
+          node --version
+          python3 --version
+          df -h .
+      - name: Verify Windows build tools
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          & $vswhere -products '*' -latest -property installationPath
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $PSVersionTable
